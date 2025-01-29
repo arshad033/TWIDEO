@@ -1,0 +1,21 @@
+{
+  "name": "twideo",
+  "version": "1.0.0",
+  "description": "a video streaming platform where user can tweet also",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "videostreaming",
+    "learning"
+  ],
+  "author": "Arshad khan",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}
