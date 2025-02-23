@@ -191,7 +191,7 @@ const refreshToken = asyncHandler(async (req, res) => {
       httpOnly: true,
       secure: true,
     };
-    console.log("new generated access token:", tokens);
+    // console.log("new generated access token:", tokens);
 
     res
       .cookie("accessToken", tokens.accessToken, option)
