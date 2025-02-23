@@ -3,15 +3,18 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadFileOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
+
     //save refresh token to the db
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
+
     return {
       accessToken,
       refreshToken,
@@ -163,4 +166,49 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("refreshToken", options)
     .json(new ApiResponse(200, {}, "User logged Out"));
 });
-export { registerUser, loginUser, logoutUser };
+const refreshToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies?.refreshToken || req.body.refreshToken;
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "unautorized request");
+  }
+  try {
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById(decodedToken?._id);
+    // console.log("user: ", user);
+
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(401, "Token expired or already used");
+    }
+
+    const tokens = await generateAccessAndRefreshToken(user._id);
+    const option = {
+      httpOnly: true,
+      secure: true,
+    };
+    console.log("new generated access token:", tokens);
+
+    res
+      .cookie("accessToken", tokens.accessToken, option)
+      .cookie("refreshToken", tokens.refreshToken, option)
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+          },
+          "Access Token refreshed"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid refresh token");
+  }
+});
+export { registerUser, loginUser, logoutUser, refreshToken };
