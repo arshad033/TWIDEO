@@ -211,4 +211,69 @@ const refreshToken = asyncHandler(async (req, res) => {
     throw new ApiError(401, error?.message || "Invalid refresh token");
   }
 });
-export { registerUser, loginUser, logoutUser, refreshToken };
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  if (!oldPassword || !newPassword) {
+    throw new ApiError(400, "Both fields are required");
+  }
+  if (oldPassword === newPassword) {
+    throw new ApiError(400, "You cannot set previous password");
+  }
+  const user = await User.findById(req.user?._id);
+  const isPasswordValid = await user.isPasswordCorrect(oldPassword);
+  if (!isPasswordValid) {
+    throw new ApiError(400, "Old Password is incorrect");
+  }
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password Changed Successfully"));
+});
+const fetchUser = asyncHandler(async (req, res) => {
+  return res.status(200, req.user, "user fetched successfully");
+});
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const { fullName, email } = req.body;
+  const updateFields = {};
+
+  if (!fullName && !email) {
+    throw new ApiError(
+      400,
+      "At least one field (fullName or email) is required."
+    );
+  }
+  if (fullName) {
+    updateFields.fullName = fullName;
+  }
+  if (email && email !== req.user.email) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      throw new ApiError(400, "user with this email already exists");
+    }
+    updateFields.email = email;
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: updateFields,
+    },
+    { new: true }
+  ).select("-password -refreshToken");
+  res
+    .status(200)
+    .json(new ApiResponse(200, user, "User details updated successfully"));
+});
+const updateUserAvatar = asyncHandler(async (req, res) => {
+  const path = req.file?.path;
+});
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshToken,
+  changeCurrentPassword,
+  fetchUser,
+  updateAccountDetails,
+};
