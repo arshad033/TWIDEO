@@ -18,9 +18,9 @@ const userSchema = new Schema(
       resourceType: { type: String, required: true },
     },
     coverImage: {
-      url: { type: String, default: "" },
-      publicId: { type: String, default: "" },
-      resourceType: { type: String, default: "" },
+      url: { type: String },
+      publicId: { type: String },
+      resourceType: { type: String },
     },
     password: { type: String, required: [true, "password is required"] },
     watchHistory: [{ type: Schema.Types.ObjectId, ref: "Video" }],

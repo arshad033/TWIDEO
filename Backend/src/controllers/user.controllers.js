@@ -1,7 +1,10 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadFileOnCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadFileOnCloudinary,
+  deleteFileOnCloudinary,
+} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 
@@ -27,7 +30,6 @@ const generateAccessAndRefreshToken = async (userId) => {
   }
 };
 const registerUser = asyncHandler(async (req, res) => {
-  //Get Details from the frontend
   const { fullName, email, username, password } = req.body;
   //validate the details -> no empthy fields etc
   if (
@@ -58,15 +60,23 @@ const registerUser = asyncHandler(async (req, res) => {
   let coverImage;
   coverImage = await uploadFileOnCloudinary(coverImageLocalPath);
 
-  // console.log(avatar);
+  // console.log("coverImage resource type: ", coverImage.resource_type);
   if (!avatar) {
     throw new ApiError(500, "Failed to upload avatar file");
   }
   //create a object -> create entry in the db
   const user = await User.create({
     fullName,
-    avatar: avatar.url,
-    coverImage: coverImage?.url || "",
+    avatar: {
+      url: avatar.url,
+      publicId: avatar.public_id,
+      resourceType: avatar.resource_type,
+    },
+    coverImage: {
+      url: coverImage?.url || "",
+      publicId: coverImage?.public_id || "",
+      resourceType: coverImage?.resource_type || "",
+    },
     email,
     password,
     username: username.toLowerCase(),
@@ -230,8 +240,10 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, {}, "Password Changed Successfully"));
 });
-const fetchUser = asyncHandler(async (req, res) => {
-  return res.status(200, req.user, "user fetched successfully");
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "user fetched successfully"));
 });
 const updateAccountDetails = asyncHandler(async (req, res) => {
   const { fullName, email } = req.body;
@@ -271,9 +283,23 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Avatar file is missing");
   }
   //Delete old avatar image
+  const { publicId, resourceType } = req.user.avatar;
 
-  const updateAvatar = await uploadFileOnCloudinary(avatarLocalPath);
-  if (!updateAvatar.url) {
+  console.log("publicId: ", publicId);
+  console.log("resource type: ", resourceType);
+
+  const isOldAvatarDeleted = await deleteFileOnCloudinary(
+    publicId,
+    resourceType
+  );
+  console.log("is old avatar is deleted or not :", isOldAvatarDeleted);
+
+  if (!isOldAvatarDeleted) {
+    throw new ApiError(500, "failed to delete the old Avatar");
+  }
+  //update the avatar
+  const newAvatar = await uploadFileOnCloudinary(avatarLocalPath);
+  if (!newAvatar.url) {
     throw new ApiError(
       400,
       "Something went wrong while uploading avatar to cloud"
@@ -282,7 +308,13 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
-      $set: { avatar: updateAvatar.url },
+      $set: {
+        avatar: {
+          url: newAvatar.url,
+          publicId: newAvatar.public_id,
+          resourceType: newAvatar.resource_type,
+        },
+      },
     },
     { new: true }
   ).select("-password -refreshToken");
@@ -297,8 +329,21 @@ const updateUserCover = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Cover file is missing");
   }
   //Delete old cover image
-  const cover = await uploadFileOnCloudinary(coverLocalPath);
-  if (!cover.url) {
+  const { publicId, resourceType } = req.user.coverImage;
+
+  const isOldCoverImageDeleted = await deleteFileOnCloudinary(
+    publicId,
+    resourceType
+  );
+  // console.log("is old cover is deleted or not :", isOldCoverImageDeleted);
+
+  if (!isOldCoverImageDeleted) {
+    throw new ApiError(500, "failed to delete the old Cover");
+  }
+
+  const newCover = await uploadFileOnCloudinary(coverLocalPath);
+
+  if (!newCover.url) {
     throw new ApiError(
       401,
       "something went wrong while uploading cover on cloud"
@@ -307,7 +352,13 @@ const updateUserCover = asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
-      $set: { coverImage: cover.url },
+      $set: {
+        coverImage: {
+          url: newCover.url,
+          publicId: newCover.public_id,
+          resourceType: newCover.resource_type,
+        },
+      },
     },
     { new: true }
   );
@@ -316,13 +367,61 @@ const updateUserCover = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, user, "Cover image updated successfully"));
 });
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const username = req.params;
+  if (!username) {
+    throw new ApiError(400, "username is empthy");
+  }
+  //select the user document
+  //join the subscription model and get subscriber and subscribed to details
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers",
+        },
+        subscribedToCount: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+  ]);
+});
 export {
   registerUser,
   loginUser,
   logoutUser,
   refreshToken,
   changeCurrentPassword,
-  fetchUser,
+  getCurrentUser,
   updateAccountDetails,
   updateUserAvatar,
   updateUserCover,
