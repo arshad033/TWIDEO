@@ -12,8 +12,16 @@ const userSchema = new Schema(
       index: true,
     },
     email: { type: String, required: true, unique: true },
-    avatar: { type: String, required: true },
-    coverImage: { type: String },
+    avatar: {
+      url: { type: String, required: true },
+      publicId: { type: String, required: true },
+      resourceType: { type: String, required: true },
+    },
+    coverImage: {
+      url: { type: String, default: "" },
+      publicId: { type: String, default: "" },
+      resourceType: { type: String, default: "" },
+    },
     password: { type: String, required: [true, "password is required"] },
     watchHistory: [{ type: Schema.Types.ObjectId, ref: "Video" }],
     refreshToken: { type: String },
