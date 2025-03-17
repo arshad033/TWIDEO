@@ -35,13 +35,13 @@ router.route("/logout").post(verifyJwt, logoutUser);
 router.route("/change-password").post(verifyJwt, changeCurrentPassword);
 router.route("/current-user").get(verifyJwt, getCurrentUser);
 router.route("/refresh").post(refreshToken);
-router.route("/update-account").post(verifyJwt, updateAccountDetails);
+router.route("/update-account").patch(verifyJwt, updateAccountDetails);
 router
   .route("/avatar")
-  .post(verifyJwt, upload.single("avatar"), updateUserAvatar);
+  .patch(verifyJwt, upload.single("avatar"), updateUserAvatar);
 router
   .route("/cover-image")
-  .post(verifyJwt, upload.single("coverImage"), updateUserCover);
+  .patch(verifyJwt, upload.single("coverImage"), updateUserCover);
 router.route("/c/:username").get(verifyJwt, getUserChannelProfile);
 router.route("/history").get(verifyJwt, getWatchHistory);
 
