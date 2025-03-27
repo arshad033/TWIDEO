@@ -46,11 +46,13 @@ const updateTweet = asyncHandler(async (req, res) => {
 //user can see their tweet
 const getUserTweet = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  if (!userId) {
-    throw new ApiError(404, "provide user id");
+  console.log(userId);
+
+  if (!userId.trim()) {
+    throw new ApiError(404, "provide a valid user id");
   }
   const getTweet = await Tweet.find({ owner: userId });
-  // console.log(getTweet);
+  console.log(getTweet);
   res
     .status(200)
     .json(new ApiResponse(200, getTweet, "user tweet fetched successfully"));
